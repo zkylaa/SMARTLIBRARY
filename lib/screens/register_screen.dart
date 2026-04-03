@@ -1,6 +1,8 @@
+// lib/screens/register_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'login_screen.dart';
+import '../services/api_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -13,13 +15,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _studentIdController = TextEditingController();
 
   bool _obscurePassword = true;
   bool _agreeToTerms = false;
-  bool _isProcessing = false;
+  bool _isLoading = false;
   String _selectedMembership = 'Scholar';
-
   final List<String> _memberships = ['Scholar', 'Scribe', 'Archivist'];
 
   @override
@@ -27,8 +28,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _phoneController.dispose();
+    _studentIdController.dispose();
     super.dispose();
+  }
+
+  Future<void> _doRegister() async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final studentId = _studentIdController.text.trim();
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      _showSnack('Please fill all required fields', isError: true);
+      return;
+    }
+    if (!_agreeToTerms) {
+      _showSnack('Please agree to the terms', isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    final result = await ApiService.register(name, email, password, studentId);
+    setState(() => _isLoading = false);
+
+    if (result['success'] == true) {
+      _showSnack('Registration successful! Please login.');
+      await Future.delayed(const Duration(milliseconds: 1200));
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    } else {
+      _showSnack(result['message'] ?? 'Registration failed', isError: true);
+    }
+  }
+
+  void _showSnack(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red[700] : Colors.green[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
@@ -44,17 +88,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
               _buildTopBar(),
               _buildHeader(),
               const SizedBox(height: 32),
-              _buildNameField(),
+              _buildField('FULL NAME', _nameController, 'Enter your full name'),
               const SizedBox(height: 16),
-              _buildEmailField(),
+              _buildField('EMAIL', _emailController, 'Enter your email',
+                  keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 16),
-              _buildPhoneField(),
+              _buildField('STUDENT ID', _studentIdController, 'e.g. STD2024001'),
               const SizedBox(height: 16),
               _buildPasswordField(),
               const SizedBox(height: 24),
               _buildMembershipSelector(),
-              const SizedBox(height: 24),
-              _buildNotificationToggle(),
               const SizedBox(height: 24),
               _buildTermsCheckbox(),
               const SizedBox(height: 24),
@@ -78,11 +121,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           color: const Color(0xFF1A1A2E),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Icon(
-          Icons.arrow_back_ios_new,
-          color: Colors.white,
-          size: 16,
-        ),
+        child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 16),
       ),
     );
   }
@@ -93,106 +132,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Join the Order.',
-            style: GoogleFonts.cormorantGaramond(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Enter the guild of literary minds. The Scriptorium awaits your application and our librarians will review your membership.',
-            style: GoogleFonts.raleway(
-              color: Colors.white38,
-              fontSize: 13,
-              height: 1.6,
-            ),
-          ),
+          Text('Join the Order.',
+              style: GoogleFonts.cormorantGaramond(
+                  color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text('CREATE YOUR SCHOLAR ACCOUNT',
+              style: GoogleFonts.raleway(
+                  color: Colors.white38, fontSize: 10, letterSpacing: 2)),
         ],
       ),
     );
   }
 
-  Widget _buildNameField() {
-    return _buildInputField(
-      label: 'Your Name',
-      hint: 'e.g. Aria Blackwood',
-      controller: _nameController,
-      icon: Icons.person_outline,
-    );
-  }
-
-  Widget _buildEmailField() {
-    return _buildInputField(
-      label: 'Scholar Email',
-      hint: 'scholar@scriptorium.com',
-      controller: _emailController,
-      icon: Icons.mail_outline,
-      keyboardType: TextInputType.emailAddress,
-    );
-  }
-
-  Widget _buildPhoneField() {
-    return _buildInputField(
-      label: 'Student Number / ID',
-      hint: 'e.g. STU-2024-0001',
-      controller: _phoneController,
-      icon: Icons.badge_outlined,
-    );
-  }
-
-  Widget _buildInputField({
-    required String label,
-    required String hint,
-    required TextEditingController controller,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
+  Widget _buildField(String label, TextEditingController ctrl, String hint,
+      {TextInputType keyboardType = TextInputType.text}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label.toUpperCase(),
-          style: GoogleFonts.raleway(
-            color: Colors.white54,
-            fontSize: 10,
-            letterSpacing: 1.5,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        Text(label,
+            style: GoogleFonts.raleway(
+                color: Colors.white54, fontSize: 10,
+                letterSpacing: 2, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         TextField(
-          controller: controller,
+          controller: ctrl,
           keyboardType: keyboardType,
-          style: GoogleFonts.raleway(color: Colors.white, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: GoogleFonts.raleway(
-              color: Colors.white24,
-              fontSize: 13,
-            ),
-            prefixIcon: Icon(icon, color: Colors.white38, size: 18),
-            filled: true,
-            fillColor: const Color(0xFF1A1A2E),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.white12),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.white12),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF2D6A8F)),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-          ),
+          style: const TextStyle(color: Colors.white),
+          decoration: _inputDeco(hint),
         ),
       ],
     );
@@ -202,60 +168,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'CIPHER',
-          style: GoogleFonts.raleway(
-            color: Colors.white54,
-            fontSize: 10,
-            letterSpacing: 1.5,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        Text('PASSWORD',
+            style: GoogleFonts.raleway(
+                color: Colors.white54, fontSize: 10,
+                letterSpacing: 2, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         TextField(
           controller: _passwordController,
           obscureText: _obscurePassword,
-          style: GoogleFonts.raleway(color: Colors.white, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: 'Create your secret cipher',
-            hintStyle: GoogleFonts.raleway(
-              color: Colors.white24,
-              fontSize: 13,
-            ),
-            prefixIcon: const Icon(
-              Icons.lock_outline,
-              color: Colors.white38,
-              size: 18,
-            ),
+          style: const TextStyle(color: Colors.white),
+          decoration: _inputDeco('Minimum 6 characters').copyWith(
             suffixIcon: IconButton(
               icon: Icon(
-                _obscurePassword
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                color: Colors.white38,
-                size: 18,
+                _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                color: Colors.white38, size: 18,
               ),
-              onPressed: () {
-                setState(() => _obscurePassword = !_obscurePassword);
-              },
-            ),
-            filled: true,
-            fillColor: const Color(0xFF1A1A2E),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.white12),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.white12),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF2D6A8F)),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
+              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
           ),
         ),
@@ -267,60 +195,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'MEMBERSHIP TIER',
-          style: GoogleFonts.raleway(
-            color: Colors.white54,
-            fontSize: 10,
-            letterSpacing: 1.5,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        Text('MEMBERSHIP TYPE',
+            style: GoogleFonts.raleway(
+                color: Colors.white54, fontSize: 10,
+                letterSpacing: 2, fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
         Row(
-          children: _memberships.map((tier) {
-            final isSelected = _selectedMembership == tier;
+          children: _memberships.map((m) {
+            final isSelected = _selectedMembership == m;
             return Expanded(
               child: GestureDetector(
-                onTap: () => setState(() => _selectedMembership = tier),
-                child: Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                onTap: () => setState(() => _selectedMembership = m),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFF2D6A8F)
                         : const Color(0xFF1A1A2E),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFF2D6A8F)
-                          : Colors.white12,
+                      color: isSelected ? const Color(0xFF2D6A8F) : Colors.white12,
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        tier == 'Scholar'
-                            ? Icons.school_outlined
-                            : tier == 'Scribe'
-                                ? Icons.edit_outlined
-                                : Icons.archive_outlined,
+                  child: Text(m,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.raleway(
                         color: isSelected ? Colors.white : Colors.white38,
-                        size: 20,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        tier,
-                        style: GoogleFonts.raleway(
-                          color: isSelected ? Colors.white : Colors.white38,
-                          fontSize: 11,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ],
-                  ),
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      )),
                 ),
               ),
             );
@@ -330,104 +235,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  bool _receiveNotifications = true;
-
-  Widget _buildNotificationToggle() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.notifications_outlined,
-            color: Color(0xFF2D6A8F),
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Receive Notifications',
-                  style: GoogleFonts.raleway(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  'Get alerts for due dates and new arrivals',
-                  style: GoogleFonts.raleway(
-                    color: Colors.white38,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: _receiveNotifications,
-            onChanged: (val) {
-              setState(() => _receiveNotifications = val);
-            },
-            activeColor: const Color(0xFF2D6A8F),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTermsCheckbox() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Checkbox(
           value: _agreeToTerms,
-          onChanged: (val) {
-            setState(() => _agreeToTerms = val ?? false);
-          },
-          activeColor: const Color(0xFF2D6A8F),
+          onChanged: (val) => setState(() => _agreeToTerms = val ?? false),
+          checkColor: Colors.white,
+          fillColor: WidgetStateProperty.resolveWith((s) =>
+              s.contains(WidgetState.selected)
+                  ? const Color(0xFF2D6A8F)
+                  : Colors.transparent),
           side: const BorderSide(color: Colors.white38),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-          ),
         ),
-        const SizedBox(width: 8),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(top: 12),
             child: RichText(
               text: TextSpan(
-                style: GoogleFonts.raleway(
-                  color: Colors.white54,
-                  fontSize: 12,
-                  height: 1.6,
-                ),
+                text: 'I agree to the ',
+                style: GoogleFonts.raleway(color: Colors.white38, fontSize: 13),
                 children: [
-                  const TextSpan(
-                    text: 'I agree to the Scriptorium\'s ',
-                  ),
                   TextSpan(
-                    text: 'Terms of Membership',
+                    text: 'Terms of Service',
                     style: GoogleFonts.raleway(
-                      color: const Color(0xFF2D6A8F),
-                      fontSize: 12,
-                      decoration: TextDecoration.underline,
-                    ),
+                        color: const Color(0xFF2D6A8F),
+                        decoration: TextDecoration.underline),
                   ),
-                  const TextSpan(text: ' and our '),
+                  TextSpan(text: ' and '),
                   TextSpan(
-                    text: 'Privacy Scroll.',
+                    text: 'Privacy Policy',
                     style: GoogleFonts.raleway(
-                      color: const Color(0xFF2D6A8F),
-                      fontSize: 12,
-                      decoration: TextDecoration.underline,
-                    ),
+                        color: const Color(0xFF2D6A8F),
+                        decoration: TextDecoration.underline),
                   ),
                 ],
               ),
@@ -442,34 +283,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _agreeToTerms && !_isProcessing ? _processRegister : null,
+        onPressed: _isLoading ? null : _doRegister,
         style: ElevatedButton.styleFrom(
-          backgroundColor: _agreeToTerms
-              ? const Color(0xFF2D6A8F)
-              : Colors.white12,
+          backgroundColor: const Color(0xFF2D6A8F),
           padding: const EdgeInsets.symmetric(vertical: 18),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
-        child: _isProcessing
+        child: _isLoading
             ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-            : Text(
-                'REGISTER AS MEMBER →',
+                height: 20, width: 20,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            : Text('COMPLETE INITIATION',
                 style: GoogleFonts.raleway(
-                  color: Colors.white,
-                  fontSize: 13,
-                  letterSpacing: 1.5,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+                    fontSize: 13, letterSpacing: 2,
+                    color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -477,30 +304,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildLoginLink() {
     return Center(
       child: GestureDetector(
-        onTap: () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const LoginScreen(),
-            ),
-          );
-        },
+        onTap: () => Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (_) => const LoginScreen())),
         child: RichText(
           text: TextSpan(
-            style: GoogleFonts.raleway(
-              color: Colors.white38,
-              fontSize: 13,
-            ),
+            text: 'Already a member? ',
+            style: GoogleFonts.raleway(color: Colors.white38, fontSize: 13),
             children: [
-              const TextSpan(text: 'Already a member? '),
               TextSpan(
-                text: 'Enter here.',
+                text: 'Sign in here.',
                 style: GoogleFonts.raleway(
-                  color: const Color(0xFF2D6A8F),
-                  fontSize: 13,
-                  decoration: TextDecoration.underline,
-                  fontWeight: FontWeight.w600,
-                ),
+                    color: const Color(0xFF2D6A8F),
+                    decoration: TextDecoration.underline,
+                    fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -509,72 +325,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  void _processRegister() async {
-    setState(() => _isProcessing = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isProcessing = false);
-
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.verified_outlined,
-              color: Color(0xFF2D6A8F),
-              size: 64,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Welcome to the Order!',
-              style: GoogleFonts.cormorantGaramond(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Your membership application has been received. Our librarians will review it shortly.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.raleway(
-                color: Colors.white54,
-                fontSize: 13,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const LoginScreen(),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2D6A8F),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: Text(
-                'Go to Login',
-                style: GoogleFonts.raleway(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      ),
+  InputDecoration _inputDeco(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: Colors.white24, fontSize: 14),
+      filled: true,
+      fillColor: const Color(0xFF1A1A2E),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white12)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white12)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF2D6A8F))),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 }

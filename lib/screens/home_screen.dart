@@ -1,6 +1,12 @@
+// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/api_service.dart';
+import '../services/session_service.dart';
+import '../models/book_model.dart';
 import 'book_detail_screen.dart';
+import 'login_screen.dart';
+import 'manage_books_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,100 +17,100 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  Map<String, dynamic>? _currentUser;
 
-  final List<Map<String, dynamic>> _trendingBooks = [
-    {
-      'id': 1,
-      'title': "The Alchemist's Shadow",
-      'author': 'Luna Voss',
-      'color': const Color(0xFF1A3A4F),
-      'progress': 0.45,
-      'rating': 4.5,
-      'pages': 324,
-      'image': 'https://covers.openlibrary.org/b/id/8739161-L.jpg',
-      'synopsis':
-          'A young shepherd journeys across the desert in search of a treasure, discovering that the real wealth lies within himself.',
-    },
-    {
-      'id': 2,
-      'title': 'Echoes of the Past',
-      'author': 'Marcus Reed',
-      'color': const Color(0xFF2D1B4E),
-      'progress': 0.0,
-      'rating': 4.2,
-      'pages': 280,
-      'image': 'https://covers.openlibrary.org/b/id/10527843-L.jpg',
-      'synopsis':
-          'A detective unravels a mystery that stretches across decades, uncovering dark secrets buried deep in a forgotten city.',
-    },
-    {
-      'id': 3,
-      'title': 'The Quiet Storm',
-      'author': 'Aria Chen',
-      'color': const Color(0xFF1B3A2D),
-      'progress': 0.0,
-      'rating': 4.7,
-      'pages': 412,
-      'image': 'https://covers.openlibrary.org/b/id/9255566-L.jpg',
-      'synopsis':
-          'In the silence before the storm, one woman must choose between loyalty and the truth that could change everything.',
-    },
-    {
-      'id': 4,
-      'title': 'The Midnight Library',
-      'author': 'Matt Haig',
-      'color': const Color(0xFF1A2A4A),
-      'progress': 0.0,
-      'rating': 4.8,
-      'pages': 304,
-      'image': 'https://covers.openlibrary.org/b/id/10527946-L.jpg',
-      'synopsis':
-          'Between life and death there is a library, and its shelves go on forever. Each book provides a chance to try another life.',
-    },
-    {
-      'id': 5,
-      'title': 'Dune',
-      'author': 'Frank Herbert',
-      'color': const Color(0xFF3A2A1A),
-      'progress': 0.0,
-      'rating': 4.9,
-      'pages': 688,
-      'image': 'https://covers.openlibrary.org/b/id/8763128-L.jpg',
-      'synopsis':
-          'A sweeping tale of politics, religion, and ecology set on the desert planet Arrakis, home to the most valuable substance in the universe.',
-    },
-  ];
+  // Books dari API
+  List<BookModel> _allBooks = [];
+  bool _booksLoading = true;
 
-  final List<Map<String, dynamic>> _collections = [
-    {
-      'title': 'Fiction',
-      'count': '124 Books',
-      'color': const Color(0xFF1A1A3E),
-      'image': 'https://covers.openlibrary.org/b/id/8739161-L.jpg',
-      'icon': Icons.auto_stories,
-    },
-    {
-      'title': 'Science',
-      'count': '89 Books',
-      'color': const Color(0xFF0D2137),
-      'image': 'https://covers.openlibrary.org/b/id/8775187-L.jpg',
-      'icon': Icons.science_outlined,
-    },
-    {
-      'title': 'History',
-      'count': '67 Books',
-      'color': const Color(0xFF2D1B00),
-      'image': 'https://covers.openlibrary.org/b/id/9255566-L.jpg',
-      'icon': Icons.history_edu_outlined,
-    },
-    {
-      'title': 'Poetry',
-      'count': '45 Books',
-      'color': const Color(0xFF1B002D),
-      'image': 'https://covers.openlibrary.org/b/id/10527843-L.jpg',
-      'icon': Icons.format_quote_outlined,
-    },
-  ];
+  // Borrows dari API
+  List<Map<String, dynamic>> _borrows = [];
+  bool _borrowsLoading = true;
+
+  // Untuk halaman Books
+  String _searchQuery = '';
+  String _selectedCategory = '';
+  final List<String> _categories = ['', 'Fiction', 'Science', 'History', 'Self-Help', 'Science Fiction', 'Poetry'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+    _loadBooks();
+  }
+
+  Future<void> _loadUser() async {
+    final user = await SessionService.getUser();
+    setState(() => _currentUser = user);
+    if (user != null) _loadBorrows(user['id']);
+  }
+
+  Future<void> _loadBooks({String search = '', String category = ''}) async {
+    setState(() => _booksLoading = true);
+    final result = await ApiService.getBooks(
+        search: search.isEmpty ? null : search,
+        category: category.isEmpty ? null : category);
+    if (result['success'] == true) {
+      final list = (result['books'] as List).map((b) => BookModel.fromJson(b)).toList();
+      setState(() { _allBooks = list; _booksLoading = false; });
+    } else {
+      setState(() => _booksLoading = false);
+    }
+  }
+
+  Future<void> _loadBorrows(int userId) async {
+    setState(() => _borrowsLoading = true);
+    final result = await ApiService.getBorrows(userId);
+    if (result['success'] == true) {
+      setState(() {
+        _borrows = List<Map<String, dynamic>>.from(result['borrows'] ?? []);
+        _borrowsLoading = false;
+      });
+    } else {
+      setState(() => _borrowsLoading = false);
+    }
+  }
+
+  Future<void> _logout() async {
+    await SessionService.logout();
+    if (!mounted) return;
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+  }
+
+  Future<void> _returnBook(Map<String, dynamic> borrow) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: Text('Return Book', style: GoogleFonts.cormorantGaramond(color: Colors.white, fontSize: 20)),
+        content: Text('Return "${borrow['title']}"?', style: GoogleFonts.raleway(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel', style: GoogleFonts.raleway(color: Colors.white38))),
+          TextButton(onPressed: () => Navigator.pop(context, true),
+              child: Text('Return', style: GoogleFonts.raleway(color: const Color(0xFF2D6A8F)))),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final result = await ApiService.returnBook(int.parse(borrow['id'].toString()));
+    if (result['success'] == true) {
+      _showSnack('Book returned successfully!');
+      _loadBorrows(_currentUser!['id']);
+      _loadBooks(search: _searchQuery, category: _selectedCategory);
+    } else {
+      _showSnack(result['message'] ?? 'Failed to return', isError: true);
+    }
+  }
+
+  void _showSnack(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: isError ? Colors.red[700] : Colors.green[700],
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,17 +134,21 @@ class _HomeScreenState extends State<HomeScreen> {
   // ══════════════════════════════════════════
 
   Widget _buildHomeBody() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTopBar(),
-          _buildRecentlyRead(),
-          _buildTrendingNow(),
-          _buildCollections(),
-          _buildCuratedSection(),
-          const SizedBox(height: 32),
-        ],
+    return RefreshIndicator(
+      onRefresh: () => _loadBooks(),
+      color: const Color(0xFF2D6A8F),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTopBar(),
+            _buildWelcomeBanner(),
+            _buildTrendingNow(),
+            _buildCategorySection(),
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
     );
   }
@@ -149,595 +159,191 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.menu_book, color: Colors.white70, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'The Scriptorium',
-                style: GoogleFonts.cormorantGaramond(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text('THE SCRIPTORIUM',
+                  style: GoogleFonts.raleway(
+                      color: Colors.white38, fontSize: 10, letterSpacing: 3)),
+              Text('Good Day, ${_currentUser?['name']?.split(' ').first ?? 'Scholar'}',
+                  style: GoogleFonts.cormorantGaramond(
+                      color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
             ],
           ),
-          GestureDetector(
-            onTap: () {},
-            child: const Icon(Icons.search, color: Colors.white70),
+          Row(
+            children: [
+              // Admin: manage books
+              IconButton(
+                icon: const Icon(Icons.admin_panel_settings_outlined,
+                    color: Color(0xFF2D6A8F), size: 22),
+                tooltip: 'Manage Books',
+                onPressed: () async {
+                  await Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ManageBooksScreen()));
+                  _loadBooks(search: _searchQuery, category: _selectedCategory);
+                },
+              ),
+              Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(
+                    color: const Color(0xFF2D6A8F),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24, width: 2)),
+                child: const Icon(Icons.person, color: Colors.white, size: 22),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildRecentlyRead() {
-    final book = _trendingBooks[0];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildWelcomeBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+            colors: [Color(0xFF1E3A4F), Color(0xFF2D6A8F)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
         children: [
-          Text(
-            'Recently Read',
-            style: GoogleFonts.raleway(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${_allBooks.length} Books Available',
+                    style: GoogleFonts.cormorantGaramond(
+                        color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text('${_borrows.where((b) => b['status'] == 'borrowed').length} currently borrowed by you',
+                    style: GoogleFonts.raleway(color: Colors.white70, fontSize: 12)),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          GestureDetector(
-            onTap: () => _goToDetail(book),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: book['color'],
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  // Book cover image
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      book['image'],
-                      width: 70,
-                      height: 95,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 70,
-                        height: 95,
-                        color: Colors.black26,
-                        child: const Icon(Icons.book,
-                            color: Colors.white54, size: 32),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          book['title'],
-                          style: GoogleFonts.cormorantGaramond(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'by ${book['author']}',
-                          style: GoogleFonts.raleway(
-                            color: Colors.white60,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Progress',
-                          style: GoogleFonts.raleway(
-                            color: Colors.white60,
-                            fontSize: 11,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: book['progress'],
-                            backgroundColor: Colors.white24,
-                            valueColor:
-                                const AlwaysStoppedAnimation(Colors.white),
-                            minHeight: 4,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${(book['progress'] * 100).toInt()}% completed',
-                          style: GoogleFonts.raleway(
-                            color: Colors.white38,
-                            fontSize: 10,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: () => _goToDetail(book),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: book['color'],
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                          ),
-                          child: Text(
-                            'Continue Reading',
-                            style: GoogleFonts.raleway(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          const Icon(Icons.local_library_outlined, color: Colors.white54, size: 48),
         ],
       ),
     );
   }
 
   Widget _buildTrendingNow() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Trending Now',
-                  style: GoogleFonts.raleway(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => setState(() => _currentIndex = 1),
-                  child: Text(
-                    'See all →',
-                    style: GoogleFonts.raleway(
-                      color: const Color(0xFF2D6A8F),
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 200,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _trendingBooks.length,
-              itemBuilder: (context, index) {
-                final book = _trendingBooks[index];
-                return GestureDetector(
-                  onTap: () => _goToDetail(book),
-                  child: Container(
-                    width: 130,
-                    margin: const EdgeInsets.only(right: 12),
-                    decoration: BoxDecoration(
-                      color: book['color'],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Stack(
-                      children: [
-                        // Cover image
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            book['image'],
-                            width: 130,
-                            height: 200,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: book['color'],
-                              child: const Center(
-                                child: Icon(Icons.book,
-                                    color: Colors.white24, size: 48),
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Gradient overlay
-                        Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withOpacity(0.85),
-                                ],
-                                stops: const [0.5, 1.0],
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Title
-                        Positioned(
-                          bottom: 8,
-                          left: 8,
-                          right: 8,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                book['title'],
-                                style: GoogleFonts.cormorantGaramond(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 2,
-                              ),
-                              Text(
-                                book['author'],
-                                style: GoogleFonts.raleway(
-                                  color: Colors.white60,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Rating badge
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.star,
-                                    color: Color(0xFFFFD700), size: 10),
-                                const SizedBox(width: 2),
-                                Text(
-                                  '${book['rating']}',
-                                  style: GoogleFonts.raleway(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCollections() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Collections',
-                style: GoogleFonts.raleway(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                'See all →',
-                style: GoogleFonts.raleway(
-                  color: const Color(0xFF2D6A8F),
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.6,
-            ),
-            itemCount: _collections.length,
-            itemBuilder: (context, index) {
-              final col = _collections[index];
-              return GestureDetector(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Opening ${col['title']} collection...',
-                        style: GoogleFonts.raleway(color: Colors.white),
-                      ),
-                      backgroundColor: const Color(0xFF2D6A8F),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: col['color'],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Background image
-                        Image.network(
-                          col['image'],
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              Container(color: col['color']),
-                        ),
-                        // Dark overlay
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.black.withOpacity(0.6),
-                                (col['color'] as Color).withOpacity(0.85),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // Content
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Icon(
-                                col['icon'] as IconData,
-                                color: Colors.white70,
-                                size: 20,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                col['title'],
-                                style: GoogleFonts.cormorantGaramond(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                col['count'],
-                                style: GoogleFonts.raleway(
-                                  color: Colors.white54,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCuratedSection() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white12),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+          child: Text('All Books',
+              style: GoogleFonts.cormorantGaramond(
+                  color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
         ),
+        if (_booksLoading)
+          const Center(child: Padding(
+            padding: EdgeInsets.all(32),
+            child: CircularProgressIndicator(color: Color(0xFF2D6A8F)),
+          ))
+        else if (_allBooks.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(32),
+            child: Center(child: Text('No books yet. Add books from Manage Books.',
+                style: GoogleFonts.raleway(color: Colors.white38))),
+          )
+        else
+          SizedBox(
+            height: 220,
+            child: ListView.builder(
+              padding: const EdgeInsets.only(left: 20),
+              scrollDirection: Axis.horizontal,
+              itemCount: _allBooks.length,
+              itemBuilder: (_, i) => _buildBookCard(_allBooks[i]),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBookCard(BookModel book) {
+    return GestureDetector(
+      onTap: () => _goToDetail(book),
+      child: Container(
+        width: 130,
+        margin: const EdgeInsets.only(right: 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Curated for the',
-              style: GoogleFonts.raleway(color: Colors.white70, fontSize: 14),
-            ),
-            Text(
-              'Inquisitive Mind',
-              style: GoogleFonts.cormorantGaramond(
-                color: Colors.white,
-                fontSize: 24,
-                fontStyle: FontStyle.italic,
-                fontWeight: FontWeight.bold,
-              ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: book.coverUrl.isNotEmpty
+                  ? Image.network(book.coverUrl,
+                      width: 130, height: 170, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _bookPlaceholder(130, 170))
+                  : _bookPlaceholder(130, 170),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Our librarians have hand-picked a stunning collection of works exploring the intersection of art, philosophy, and technology.',
-              style: GoogleFonts.raleway(
-                color: Colors.white54,
-                fontSize: 12,
-                height: 1.6,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => setState(() => _currentIndex = 1),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2D6A8F),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-              child: Text(
-                'Explore Collection',
-                style: GoogleFonts.raleway(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+            Text(book.title,
+                style: GoogleFonts.cormorantGaramond(
+                    color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(book.author,
+                style: GoogleFonts.raleway(color: Colors.white38, fontSize: 10),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
           ],
         ),
       ),
     );
   }
 
-  // ══════════════════════════════════════════
-  //  BOOKS PAGE (tab index 1)
-  // ══════════════════════════════════════════
-
-  Widget _buildBooksPage() {
+  Widget _buildCategorySection() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+          child: Text('Browse by Category',
+              style: GoogleFonts.cormorantGaramond(
+                  color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(left: 20),
           child: Row(
             children: [
-              Text(
-                'All Books',
-                style: GoogleFonts.cormorantGaramond(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              const Icon(Icons.search, color: Colors.white54),
-            ],
-          ),
-        ),
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.65,
-            ),
-            itemCount: _trendingBooks.length,
-            itemBuilder: (context, index) {
-              final book = _trendingBooks[index];
+              {'label': 'All', 'icon': Icons.auto_stories},
+              {'label': 'Fiction', 'icon': Icons.book},
+              {'label': 'Science', 'icon': Icons.science_outlined},
+              {'label': 'History', 'icon': Icons.history_edu_outlined},
+              {'label': 'Self-Help', 'icon': Icons.self_improvement},
+            ].map((c) {
+              final cat = c['label'] as String;
+              final isSelected = _selectedCategory == (cat == 'All' ? '' : cat);
               return GestureDetector(
-                onTap: () => _goToDetail(book),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Image.network(
-                              book['image'],
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: book['color'],
-                                child: const Icon(Icons.book,
-                                    color: Colors.white24, size: 40),
-                              ),
-                            ),
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.star,
-                                        color: Color(0xFFFFD700), size: 10),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      '${book['rating']}',
-                                      style: GoogleFonts.raleway(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      book['title'],
-                      style: GoogleFonts.cormorantGaramond(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      book['author'],
-                      style: GoogleFonts.raleway(
-                        color: Colors.white38,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+                onTap: () {
+                  setState(() => _selectedCategory = cat == 'All' ? '' : cat);
+                  _loadBooks(search: _searchQuery, category: _selectedCategory);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.only(right: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFF2D6A8F) : const Color(0xFF1A1A2E),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: isSelected ? const Color(0xFF2D6A8F) : Colors.white12),
+                  ),
+                  child: Row(children: [
+                    Icon(c['icon'] as IconData,
+                        color: isSelected ? Colors.white : Colors.white38, size: 14),
+                    const SizedBox(width: 6),
+                    Text(cat,
+                        style: GoogleFonts.raleway(
+                            color: isSelected ? Colors.white : Colors.white54, fontSize: 12)),
+                  ]),
                 ),
               );
-            },
+            }).toList(),
           ),
         ),
       ],
@@ -745,235 +351,336 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ══════════════════════════════════════════
-  //  BORROW PAGE (tab index 2)
+  //  BOOKS PAGE (tab 1)
+  // ══════════════════════════════════════════
+
+  Widget _buildBooksPage() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('All Books',
+                  style: GoogleFonts.cormorantGaramond(
+                      color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              TextField(
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Search books...',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white38),
+                  filled: true,
+                  fillColor: const Color(0xFF1A1A2E),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                ),
+                onChanged: (v) {
+                  _searchQuery = v;
+                  _loadBooks(search: v, category: _selectedCategory);
+                },
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _booksLoading
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF2D6A8F)))
+              : _allBooks.isEmpty
+                  ? Center(
+                      child: Text('No books found',
+                          style: GoogleFonts.cormorantGaramond(color: Colors.white38, fontSize: 20)))
+                  : GridView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12, mainAxisSpacing: 12,
+                        childAspectRatio: 0.62,
+                      ),
+                      itemCount: _allBooks.length,
+                      itemBuilder: (_, i) {
+                        final book = _allBooks[i];
+                        return GestureDetector(
+                          onTap: () => _goToDetail(book),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Stack(fit: StackFit.expand, children: [
+                                    book.coverUrl.isNotEmpty
+                                        ? Image.network(book.coverUrl, fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => _bookPlaceholder(double.infinity, double.infinity))
+                                        : _bookPlaceholder(double.infinity, double.infinity),
+                                    Positioned(
+                                      top: 8, right: 8,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                        decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            borderRadius: BorderRadius.circular(8)),
+                                        child: Text(
+                                          '${book.availableCopies} avail',
+                                          style: GoogleFonts.raleway(color: Colors.white, fontSize: 9),
+                                        ),
+                                      ),
+                                    ),
+                                  ]),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(book.title,
+                                  style: GoogleFonts.cormorantGaramond(
+                                      color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                              Text(book.author,
+                                  style: GoogleFonts.raleway(color: Colors.white38, fontSize: 11),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ],
+    );
+  }
+
+  // ══════════════════════════════════════════
+  //  BORROW PAGE (tab 2)
   // ══════════════════════════════════════════
 
   Widget _buildBorrowPage() {
+    final activeBorrows = _borrows.where((b) => b['status'] == 'borrowed').toList();
+    final history = _borrows.where((b) => b['status'] == 'returned').toList();
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'My Borrowings',
-            style: GoogleFonts.cormorantGaramond(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 24),
+          Text('My Borrowings',
+              style: GoogleFonts.cormorantGaramond(
+                  color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text('${activeBorrows.length} active · ${history.length} returned',
+              style: GoogleFonts.raleway(color: Colors.white38, fontSize: 12)),
+          const SizedBox(height: 20),
           Expanded(
-            child: ListView.builder(
-              itemCount: 2,
-              itemBuilder: (context, index) {
-                final book = _trendingBooks[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A2E),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white12),
-                  ),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          book['image'],
-                          width: 55,
-                          height: 75,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            width: 55,
-                            height: 75,
-                            color: book['color'],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
+            child: _borrowsLoading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF2D6A8F)))
+                : _borrows.isEmpty
+                    ? Center(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              book['title'],
-                              style: GoogleFonts.cormorantGaramond(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              'by ${book['author']}',
-                              style: GoogleFonts.raleway(
-                                color: Colors.white38,
-                                fontSize: 11,
-                              ),
-                            ),
+                            const Icon(Icons.bookmark_border, color: Colors.white24, size: 64),
+                            const SizedBox(height: 16),
+                            Text('No borrowings yet',
+                                style: GoogleFonts.cormorantGaramond(color: Colors.white38, fontSize: 20)),
                             const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                const Icon(Icons.calendar_today,
-                                    color: Color(0xFF2D6A8F), size: 12),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Due: 15 Apr 2026',
-                                  style: GoogleFonts.raleway(
-                                    color: const Color(0xFF2D6A8F),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
+                            Text('Browse books and start borrowing!',
+                                style: GoogleFonts.raleway(color: Colors.white24, fontSize: 13)),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () => _loadBorrows(_currentUser!['id']),
+                        color: const Color(0xFF2D6A8F),
+                        child: ListView(
+                          children: [
+                            if (activeBorrows.isNotEmpty) ...[
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Text('ACTIVE',
+                                    style: GoogleFonts.raleway(
+                                        color: Colors.white38, fontSize: 10, letterSpacing: 2)),
+                              ),
+                              ...activeBorrows.map((b) => _buildBorrowCard(b, active: true)),
+                              const SizedBox(height: 16),
+                            ],
+                            if (history.isNotEmpty) ...[
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Text('HISTORY',
+                                    style: GoogleFonts.raleway(
+                                        color: Colors.white38, fontSize: 10, letterSpacing: 2)),
+                              ),
+                              ...history.map((b) => _buildBorrowCard(b, active: false)),
+                            ],
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Active',
-                          style: GoogleFonts.raleway(
-                            color: Colors.green,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildBorrowCard(Map<String, dynamic> borrow, {required bool active}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: borrow['cover_url'] != null && borrow['cover_url'].isNotEmpty
+                ? Image.network(borrow['cover_url'], width: 55, height: 75, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _bookPlaceholder(55, 75))
+                : _bookPlaceholder(55, 75),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(borrow['title'] ?? '',
+                    style: GoogleFonts.cormorantGaramond(
+                        color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                Text('by ${borrow['author'] ?? ''}',
+                    style: GoogleFonts.raleway(color: Colors.white38, fontSize: 11)),
+                const SizedBox(height: 6),
+                Row(children: [
+                  const Icon(Icons.calendar_today, color: Color(0xFF2D6A8F), size: 12),
+                  const SizedBox(width: 4),
+                  Text('Due: ${borrow['return_date'] ?? ''}',
+                      style: GoogleFonts.raleway(
+                          color: const Color(0xFF2D6A8F), fontSize: 11, fontWeight: FontWeight.w600)),
+                ]),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          active
+              ? ElevatedButton(
+                  onPressed: () => _returnBook(borrow),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2D6A8F).withOpacity(0.8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    minimumSize: Size.zero,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Return', style: GoogleFonts.raleway(color: Colors.white, fontSize: 11)),
+                )
+              : Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                      color: Colors.white12, borderRadius: BorderRadius.circular(8)),
+                  child: Text('Returned',
+                      style: GoogleFonts.raleway(color: Colors.white38, fontSize: 11)),
+                ),
+        ],
+      ),
+    );
+  }
+
   // ══════════════════════════════════════════
-  //  PROFILE PAGE (tab index 3)
+  //  PROFILE PAGE (tab 3)
   // ══════════════════════════════════════════
 
   Widget _buildProfilePage() {
+    final name = _currentUser?['name'] ?? 'Scholar';
+    final email = _currentUser?['email'] ?? '';
+    final studentId = _currentUser?['student_id'] ?? '-';
+    final activeBorrows = _borrows.where((b) => b['status'] == 'borrowed').length;
+    final totalBorrows = _borrows.length;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
           const SizedBox(height: 20),
           Container(
-            width: 90,
-            height: 90,
+            width: 90, height: 90,
             decoration: BoxDecoration(
-              color: const Color(0xFF2D6A8F),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white24, width: 2),
-            ),
+                color: const Color(0xFF2D6A8F),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white24, width: 2)),
             child: const Icon(Icons.person, color: Colors.white, size: 48),
           ),
           const SizedBox(height: 12),
-          Text(
-            'Scholar Member',
-            style: GoogleFonts.cormorantGaramond(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            'scholar@scriptorium.com',
-            style: GoogleFonts.raleway(color: Colors.white38, fontSize: 13),
-          ),
+          Text(name,
+              style: GoogleFonts.cormorantGaramond(
+                  color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(email, style: GoogleFonts.raleway(color: Colors.white38, fontSize: 13)),
+          const SizedBox(height: 4),
+          Text('Student ID: $studentId',
+              style: GoogleFonts.raleway(color: Colors.white24, fontSize: 12)),
           const SizedBox(height: 24),
-          Row(
-            children: [
-              _buildStatCard('12', 'Books\nBorrowed'),
-              const SizedBox(width: 12),
-              _buildStatCard('3', 'Currently\nReading'),
-              const SizedBox(width: 12),
-              _buildStatCard('28', 'Wishlist'),
-            ],
-          ),
+          Row(children: [
+            _statCard('$totalBorrows', 'Total\nBorrowed'),
+            const SizedBox(width: 12),
+            _statCard('$activeBorrows', 'Active\nBorrows'),
+            const SizedBox(width: 12),
+            _statCard('${_allBooks.length}', 'Books in\nLibrary'),
+          ]),
           const SizedBox(height: 24),
-          _buildProfileMenu(Icons.history, 'Borrow History'),
-          _buildProfileMenu(Icons.bookmark_outline, 'My Wishlist'),
-          _buildProfileMenu(Icons.settings_outlined, 'Settings'),
-          _buildProfileMenu(Icons.logout, 'Logout', isRed: true),
+          _profileMenu(Icons.admin_panel_settings_outlined, 'Manage Books (Admin)',
+              onTap: () async {
+            await Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ManageBooksScreen()));
+            _loadBooks(search: _searchQuery, category: _selectedCategory);
+          }),
+          _profileMenu(Icons.bookmark_outline, 'My Borrowings',
+              onTap: () => setState(() => _currentIndex = 2)),
+          _profileMenu(Icons.logout, 'Logout', isRed: true, onTap: _logout),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(String value, String label) {
+  Widget _statCard(String val, String label) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
+            color: const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12)),
+        child: Column(children: [
+          Text(val,
               style: GoogleFonts.cormorantGaramond(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              label,
+                  color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(label,
               textAlign: TextAlign.center,
-              style: GoogleFonts.raleway(
-                color: Colors.white38,
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
+              style: GoogleFonts.raleway(color: Colors.white38, fontSize: 10)),
+        ]),
       ),
     );
   }
 
-  Widget _buildProfileMenu(IconData icon, String label,
-      {bool isRed = false}) {
+  Widget _profileMenu(IconData icon, String label,
+      {bool isRed = false, VoidCallback? onTap}) {
     return GestureDetector(
-      onTap: () {},
+      onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Row(
-          children: [
-            Icon(icon,
-                color: isRed ? Colors.red.shade400 : Colors.white54,
-                size: 20),
-            const SizedBox(width: 12),
-            Text(
-              label,
+            color: const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12)),
+        child: Row(children: [
+          Icon(icon, color: isRed ? Colors.red.shade400 : Colors.white54, size: 20),
+          const SizedBox(width: 12),
+          Text(label,
               style: GoogleFonts.raleway(
-                color: isRed ? Colors.red.shade400 : Colors.white70,
-                fontSize: 14,
-              ),
-            ),
-            const Spacer(),
-            Icon(Icons.arrow_forward_ios,
-                color: Colors.white24, size: 14),
-          ],
-        ),
+                  color: isRed ? Colors.red.shade400 : Colors.white70, fontSize: 14)),
+          const Spacer(),
+          Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
+        ]),
       ),
     );
   }
@@ -989,42 +696,30 @@ class _HomeScreenState extends State<HomeScreen> {
       {'icon': Icons.bookmark_outline, 'label': 'Borrow'},
       {'icon': Icons.person_outline, 'label': 'Profile'},
     ];
-
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF1A1A2E),
-        border: Border(top: BorderSide(color: Colors.white12)),
-      ),
+          color: Color(0xFF1A1A2E),
+          border: Border(top: BorderSide(color: Colors.white12))),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(items.length, (index) {
           final isActive = _currentIndex == index;
           return GestureDetector(
-            onTap: () => setState(() => _currentIndex = index),
+            onTap: () {
+              setState(() => _currentIndex = index);
+              if (index == 0) _loadBooks(search: _searchQuery, category: _selectedCategory);
+              if (index == 2 && _currentUser != null) _loadBorrows(_currentUser!['id']);
+            },
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    items[index]['icon'] as IconData,
-                    color: isActive
-                        ? const Color(0xFF2D6A8F)
-                        : Colors.white38,
-                    size: 24,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    items[index]['label'] as String,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(items[index]['icon'] as IconData,
+                    color: isActive ? const Color(0xFF2D6A8F) : Colors.white38, size: 24),
+                const SizedBox(height: 4),
+                Text(items[index]['label'] as String,
                     style: GoogleFonts.raleway(
-                      color: isActive
-                          ? const Color(0xFF2D6A8F)
-                          : Colors.white38,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
+                        color: isActive ? const Color(0xFF2D6A8F) : Colors.white38, fontSize: 10)),
+              ]),
             ),
           );
         }),
@@ -1032,12 +727,42 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _goToDetail(Map<String, dynamic> book) {
+  // ══════════════════════════════════════════
+  //  HELPERS
+  // ══════════════════════════════════════════
+
+  void _goToDetail(BookModel book) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => BookDetailScreen(book: book),
+        builder: (_) => BookDetailScreen(
+          book: {
+            'id': book.id,
+            'title': book.title,
+            'author': book.author,
+            'image': book.coverUrl,
+            'synopsis': book.synopsis,
+            'category': book.category,
+            'available': book.availableCopies,
+            'total': book.totalCopies,
+            'color': const Color(0xFF1A3A4F),
+            'rating': 4.5,
+            'pages': 0,
+          },
+          userId: _currentUser?['id'],
+        ),
       ),
+    ).then((_) {
+      _loadBooks(search: _searchQuery, category: _selectedCategory);
+      if (_currentUser != null) _loadBorrows(_currentUser!['id']);
+    });
+  }
+
+  Widget _bookPlaceholder(double w, double h) {
+    return Container(
+      width: w, height: h,
+      color: const Color(0xFF2D6A8F).withOpacity(0.3),
+      child: const Icon(Icons.book, color: Colors.white24, size: 32),
     );
   }
 }
