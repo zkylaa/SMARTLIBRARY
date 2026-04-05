@@ -263,7 +263,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         color: const Color(0xFF2D6A8F),
                         decoration: TextDecoration.underline),
                   ),
-                  TextSpan(text: ' and '),
+                  const TextSpan(text: ' and '),
                   TextSpan(
                     text: 'Privacy Policy',
                     style: GoogleFonts.raleway(
@@ -328,7 +328,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   InputDecoration _inputDeco(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: Colors.white24, fontSize: 14),
+      hintStyle: const TextStyle(color: Colors.white24, fontSize: 14),
       filled: true,
       fillColor: const Color(0xFF1A1A2E),
       border: OutlineInputBorder(

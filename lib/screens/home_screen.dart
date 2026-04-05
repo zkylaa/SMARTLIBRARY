@@ -116,16 +116,102 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0E17),
-      body: SafeArea(
-        child: _currentIndex == 0
-            ? _buildHomeBody()
-            : _currentIndex == 1
-                ? _buildBooksPage()
-                : _currentIndex == 2
-                    ? _buildBorrowPage()
-                    : _buildProfilePage(),
-      ),
+      // ── Fixed AppBar — tidak ikut scroll ──
+      appBar: _buildFixedAppBar(),
+      body: _currentIndex == 0
+          ? _buildHomeBody()
+          : _currentIndex == 1
+              ? _buildBooksPage()
+              : _currentIndex == 2
+                  ? _buildBorrowPage()
+                  : _buildProfilePage(),
       bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  // ══════════════════════════════════════════
+  //  FIXED APP BAR
+  // ══════════════════════════════════════════
+
+  PreferredSizeWidget _buildFixedAppBar() {
+    // Judul berbeda tiap tab
+    final titles = ['The Scriptorium', 'All Books', 'My Borrowings', 'Profile'];
+    final isHome = _currentIndex == 0;
+
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(70),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F0E17),
+          border: Border(bottom: BorderSide(color: Colors.white10)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Kiri: judul/greeting
+                isHome
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('THE SCRIPTORIUM',
+                              style: GoogleFonts.raleway(
+                                  color: Colors.white38, fontSize: 9, letterSpacing: 3)),
+                          Text(
+                            'Good Day, ${_currentUser?['name']?.split(' ').first ?? 'Scholar'}',
+                            style: GoogleFonts.cormorantGaramond(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        titles[_currentIndex],
+                        style: GoogleFonts.cormorantGaramond(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold),
+                      ),
+
+                // Kanan: action icons
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.admin_panel_settings_outlined,
+                          color: Color(0xFF2D6A8F), size: 22),
+                      tooltip: 'Manage Books',
+                      onPressed: () async {
+                        await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const ManageBooksScreen()));
+                        _loadBooks(
+                            search: _searchQuery, category: _selectedCategory);
+                      },
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _currentIndex = 3),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                            color: const Color(0xFF2D6A8F),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white24, width: 2)),
+                        child: const Icon(Icons.person, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -142,58 +228,12 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildTopBar(),
             _buildWelcomeBanner(),
             _buildTrendingNow(),
             _buildCategorySection(),
             const SizedBox(height: 32),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildTopBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('THE SCRIPTORIUM',
-                  style: GoogleFonts.raleway(
-                      color: Colors.white38, fontSize: 10, letterSpacing: 3)),
-              Text('Good Day, ${_currentUser?['name']?.split(' ').first ?? 'Scholar'}',
-                  style: GoogleFonts.cormorantGaramond(
-                      color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          Row(
-            children: [
-              // Admin: manage books
-              IconButton(
-                icon: const Icon(Icons.admin_panel_settings_outlined,
-                    color: Color(0xFF2D6A8F), size: 22),
-                tooltip: 'Manage Books',
-                onPressed: () async {
-                  await Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const ManageBooksScreen()));
-                  _loadBooks(search: _searchQuery, category: _selectedCategory);
-                },
-              ),
-              Container(
-                width: 42, height: 42,
-                decoration: BoxDecoration(
-                    color: const Color(0xFF2D6A8F),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white24, width: 2)),
-                child: const Icon(Icons.person, color: Colors.white, size: 22),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
@@ -358,14 +398,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('All Books',
-                  style: GoogleFonts.cormorantGaramond(
-                      color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
               TextField(
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
@@ -460,14 +496,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final history = _borrows.where((b) => b['status'] == 'returned').toList();
 
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('My Borrowings',
-              style: GoogleFonts.cormorantGaramond(
-                  color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
           Text('${activeBorrows.length} active · ${history.length} returned',
               style: GoogleFonts.raleway(color: Colors.white38, fontSize: 12)),
           const SizedBox(height: 20),

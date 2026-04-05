@@ -14,7 +14,7 @@ class BorrowScreen extends StatefulWidget {
 }
 
 class _BorrowScreenState extends State<BorrowScreen> {
-  DateTime _borrowDate = DateTime.now();
+  final DateTime _borrowDate = DateTime.now();
   DateTime _returnDate = DateTime.now().add(const Duration(days: 7));
   bool _isSubmitting = false;
 

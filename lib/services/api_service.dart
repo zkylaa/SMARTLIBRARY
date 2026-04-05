@@ -68,7 +68,7 @@ class ApiService {
       if (search != null && search.isNotEmpty) params['search'] = search;
       if (category != null && category.isNotEmpty) params['category'] = category;
       if (params.isNotEmpty) {
-        url += '?' + params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
+        url += '?${params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
       }
       final response = await http.get(Uri.parse(url));
       return jsonDecode(response.body);

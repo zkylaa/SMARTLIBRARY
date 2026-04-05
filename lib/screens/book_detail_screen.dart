@@ -1,7 +1,6 @@
 // lib/screens/book_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/api_service.dart';
 import 'borrow_screen.dart';
 
 class BookDetailScreen extends StatefulWidget {
