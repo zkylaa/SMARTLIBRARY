@@ -32,6 +32,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedCategory = '';
   final List<String> _categories = ['', 'Fiction', 'Science', 'History', 'Self-Help', 'Science Fiction', 'Poetry'];
 
+  // Helper: cek apakah user yg login adalah admin
+  bool get _isAdmin => _currentUser?['role'] == 'admin';
+
   @override
   void initState() {
     super.initState();
@@ -180,19 +183,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Kanan: action icons
                 Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.admin_panel_settings_outlined,
-                          color: Color(0xFF2D6A8F), size: 22),
-                      tooltip: 'Manage Books',
-                      onPressed: () async {
-                        await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const ManageBooksScreen()));
-                        _loadBooks(
-                            search: _searchQuery, category: _selectedCategory);
-                      },
-                    ),
+                    // Hanya tampil jika role == admin
+                    if (_isAdmin)
+                      IconButton(
+                        icon: const Icon(Icons.admin_panel_settings_outlined,
+                            color: Color(0xFF2D6A8F), size: 22),
+                        tooltip: 'Manage Books',
+                        onPressed: () async {
+                          await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const ManageBooksScreen()));
+                          _loadBooks(
+                              search: _searchQuery, category: _selectedCategory);
+                        },
+                      ),
                     GestureDetector(
                       onTap: () => setState(() => _currentIndex = 3),
                       child: Container(
@@ -659,12 +664,14 @@ class _HomeScreenState extends State<HomeScreen> {
             _statCard('${_allBooks.length}', 'Books in\nLibrary'),
           ]),
           const SizedBox(height: 24),
-          _profileMenu(Icons.admin_panel_settings_outlined, 'Manage Books (Admin)',
-              onTap: () async {
-            await Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const ManageBooksScreen()));
-            _loadBooks(search: _searchQuery, category: _selectedCategory);
-          }),
+          // Menu admin hanya muncul jika role == admin
+          if (_isAdmin)
+            _profileMenu(Icons.admin_panel_settings_outlined, 'Manage Books (Admin)',
+                onTap: () async {
+              await Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ManageBooksScreen()));
+              _loadBooks(search: _searchQuery, category: _selectedCategory);
+            }),
           _profileMenu(Icons.bookmark_outline, 'My Borrowings',
               onTap: () => setState(() => _currentIndex = 2)),
           _profileMenu(Icons.logout, 'Logout', isRed: true, onTap: _logout),
