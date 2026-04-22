@@ -11,7 +11,7 @@ class UserModel {
     required this.email,
     required this.studentId,
   });
-
+  
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,

@@ -4,10 +4,6 @@ import 'package:http/http.dart' as http;
 
 class ApiService {
   // ─────────────────────────────────────────────────────────────
-  // GANTI IP ini dengan IP komputer kamu saat pakai emulator!
-  // Jika pakai emulator Android: 10.0.2.2
-  // Jika pakai device fisik: IP WiFi laptop kamu (contoh: 192.168.1.5)
-  // ─────────────────────────────────────────────────────────────
   static const String baseUrl = 'http://172.20.10.6/scriptorium_api';
 
   // ══════════════════════════════════════════
@@ -171,8 +167,6 @@ class ApiService {
     }
   }
 
-  // ══════════════════════════════════════════
-  //  CONSUME API LUAR - Open Library API
   //  Dokumentasi: https://openlibrary.org/developers/api
   // ══════════════════════════════════════════
 
